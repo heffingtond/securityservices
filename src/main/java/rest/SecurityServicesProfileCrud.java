@@ -16,6 +16,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 
+/**
+ * POST, PUST, and DELETE shortly
+ */
 
 @Path("security")
 public class SecurityServicesProfileCrud
