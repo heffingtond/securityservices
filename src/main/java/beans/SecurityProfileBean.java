@@ -1,5 +1,5 @@
 /**
- * Security profile bean Test
+ * Security profile bean Test 2
  */
 
 package beans;
