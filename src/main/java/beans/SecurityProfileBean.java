@@ -1,6 +1,7 @@
 /**
  * Security profile bean
  */
+
 package beans;
 
 public class SecurityProfileBean
