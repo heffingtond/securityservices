@@ -20,7 +20,7 @@
 
     <servlet-mapping>
         <servlet-name>SecurityServices</servlet-name>
-        <url-pattern>/*</url-pattern>
+        <url-pattern>rest/*</url-pattern>
     </servlet-mapping>
     
     <resource-ref>
