@@ -10,6 +10,7 @@ public class AuthenticationProfileBean
 	private String salt;
 	private String firstName;
 	private String lastName;
+	private String email;
 	private String mobilePhone;
 	private String officePhone;
 	private String officePhoneExt;
@@ -98,6 +99,16 @@ public class AuthenticationProfileBean
 		this.lastName = lastName;
 	}
 	
+	public String getEmail()
+	{
+		return email;
+	}
+
+	public void setEmail(String email)
+	{
+		this.email = email;
+	}
+
 	public String getMobilePhone()
 	{
 		return mobilePhone;

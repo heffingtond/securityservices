@@ -1,11 +1,21 @@
 package core;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
@@ -18,7 +28,10 @@ import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
 
+import org.json.simple.JSONObject;
+
 import beans.AuthenticationProfileBean;
+import beans.VerificationCodeBean;
 
 public class SecurityServicesUtilities
 {
@@ -53,51 +66,42 @@ public class SecurityServicesUtilities
 	    return connection;
 	}
 	
-	public static String getSecurityServicesProfile( AuthenticationProfileBean profile )
+	public static void getSecurityServicesProfile( AuthenticationProfileBean profile, Connection connection )
 	{
-		String status = null;
-		
-		Connection connection = null;
 		try
 		{
-			connection = getJndiConnection( "SECURITY_MYSQL_DB" );
-			if ( connection != null )
-			{
-				String sql = 
-						"select * from APPLICATION_SECURITY.AUTHENTICATION_PROFILE"
-					  + " where user_id = ?";
-				PreparedStatement preparedStatement = null;
-		        ResultSet resultSet = null;
-		        preparedStatement = connection.prepareStatement( sql );
-		        preparedStatement.setString( 1, profile.getUserId() );
-		        resultSet = preparedStatement.executeQuery();
-		        if ( resultSet.next() )
-		        {
-		        	profile.setAuthenticationProfileId( resultSet.getInt("authentication_profile_id") );
-		        	profile.setOrganizationId( resultSet.getInt("organization_id") );
-		        	profile.setUserId( resultSet.getString("user_id") );
-		        	profile.setPassword( resultSet.getString("password") );
-		        	profile.setSalt( resultSet.getString("salt") );
-		        	profile.setFirstName( resultSet.getString("first_name") );
-		        	profile.setLastName( resultSet.getString("last_name") );
-		        	profile.setMobilePhone( resultSet.getString("mobile_phone") );
-		        	profile.setOfficePhone( resultSet.getString("office_phone") );
-		        	profile.setOfficePhoneExt( resultSet.getString("office_phone_ext") );
-		        	profile.setHomePhone( resultSet.getString("home_phone") );
-		        	profile.setFailedLoginAttempts( resultSet.getInt( "failed_login_attempts" ) );
-		        	profile.setVerificationCodeMethod( resultSet.getString("verification_code_method") );
-		        }
-		        resultSet.close();
-		        preparedStatement.close();
-		        connection.close();
-			}
+			String sql = 
+					"select * from APPLICATION_SECURITY.AUTHENTICATION_PROFILE"
+				  + " where user_id = ?";
+			PreparedStatement preparedStatement = null;
+	        ResultSet resultSet = null;
+	        preparedStatement = connection.prepareStatement( sql );
+	        preparedStatement.setString( 1, profile.getUserId() );
+	        resultSet = preparedStatement.executeQuery();
+	        if ( resultSet.next() )
+	        {
+	        	profile.setAuthenticationProfileId( resultSet.getInt("authentication_profile_id") );
+	        	profile.setOrganizationId( resultSet.getInt("organization_id") );
+	        	profile.setUserId( resultSet.getString("user_id") );
+	        	profile.setPassword( resultSet.getString("password") );
+	        	profile.setSalt( resultSet.getString("salt") );
+	        	profile.setFirstName( resultSet.getString("first_name") );
+	        	profile.setLastName( resultSet.getString("last_name") );
+	        	profile.setEmail( resultSet.getString("email") );
+	        	profile.setMobilePhone( resultSet.getString("mobile_phone") );
+	        	profile.setOfficePhone( resultSet.getString("office_phone") );
+	        	profile.setOfficePhoneExt( resultSet.getString("office_phone_ext") );
+	        	profile.setHomePhone( resultSet.getString("home_phone") );
+	        	profile.setFailedLoginAttempts( resultSet.getInt( "failed_login_attempts" ) );
+	        	profile.setVerificationCodeMethod( resultSet.getString("verification_code_method") );
+	        }
+	        resultSet.close();
+	        preparedStatement.close();
 		}
-		catch( Exception e )
+		catch(Exception e)
 		{
 			e.printStackTrace();
 		}
-		
-		return status;
 	}
 
 	public static TreeMap<String,ArrayList<String>> getUserRoles( String userId, String applicationCode )
@@ -245,4 +249,273 @@ public class SecurityServicesUtilities
             return false;
         }
     }
+    
+	public static synchronized String generateAuthenticationCode()
+	{
+		SecureRandom random = new SecureRandom();
+        // Generate a number between 0 and 999999
+        int number = random.nextInt( 1000000 ); 
+        
+        // Format to ensure 6 digits with leading zeros if necessary
+        String code = String.format("%06d", number);
+        
+        System.out.println("Your 6-digit code: " + code);
+        return code;
+	}
+
+	// This method gets an existing Verification Code for the natural PK: authentication_profile_id + application id
+	public static VerificationCodeBean getVerificationCode( int authenticationProfileId,
+			   												Connection connection ) throws Exception
+	{
+		String sql = 
+		"select * from APPLICATION_SECURITY.VERIFICATION_CODE "
+	  + "where authentication_profile_id = ? ";
+		PreparedStatement preparedStatement = null;
+        ResultSet resultSet = null;
+        preparedStatement = connection.prepareStatement( sql );
+        preparedStatement.setInt( 1, authenticationProfileId );
+        resultSet = preparedStatement.executeQuery();
+        
+        VerificationCodeBean verificationCode = null;
+        if ( resultSet.next() )
+        {
+        	verificationCode = new VerificationCodeBean();
+        	verificationCode.setVerificationCodeId( resultSet.getInt("verification_code_id") );
+        	verificationCode.setAuthenticationProfileId( resultSet.getInt("authentication_profile_id") );
+			verificationCode.setVerificationCode( resultSet.getString("verification_cd") );
+			verificationCode.setCreatedTimestamp( resultSet.getString("created_ts") );
+        }
+        resultSet.close();
+        preparedStatement.close();
+        
+        return verificationCode;
+	}
+
+	public static void deleteVerificationCode( int verificationCodeId, Connection connection ) throws SQLException
+	{
+		String sql = "delete from APPLICATION_SECURITY.VERIFICATION_CODE "
+				   + "where verification_code_id = ?";
+		PreparedStatement preparedStatement = connection.prepareStatement( sql );
+        preparedStatement.setInt( 1, verificationCodeId );
+        preparedStatement.executeUpdate();
+        preparedStatement.close();
+	}
+
+	public static void clearVerificationCodeTable( int authenticationProfileId, Connection connection ) throws SQLException
+	{
+		String sql = "delete from APPLICATION_SECURITY.VERIFICATION_CODE "
+				   + "where authentication_profile_id = ?";
+		PreparedStatement preparedStatement = connection.prepareStatement( sql );
+        preparedStatement.setInt( 1, authenticationProfileId );
+        preparedStatement.executeUpdate();
+        preparedStatement.close();
+	}
+
+	public static synchronized void addNewVerificationCode( VerificationCodeBean verification, Connection connection ) throws SQLException
+	{
+		clearVerificationCodeTable( verification.getAuthenticationProfileId(), connection );
+		
+		String sql = "insert into APPLICATION_SECURITY.VERIFICATION_CODE "
+				   + "("
+				   + "authentication_profile_id, "
+				   + "verification_cd, "
+				   + "created_ts "
+				   + ") "
+				   + "values( ?,?,? )";
+
+		
+		PreparedStatement preparedStatement = connection.prepareStatement( sql, Statement.RETURN_GENERATED_KEYS );
+        preparedStatement.setInt( 1, verification.getAuthenticationProfileId() );
+        preparedStatement.setString( 2, verification.getVerificationCode() );
+        String currentTimestamp = SecurityServicesUtilities.getCurrentTimestamp();
+        verification.setCreatedTimestamp( currentTimestamp );
+        preparedStatement.setString( 3, verification.getCreatedTimestamp() );
+        preparedStatement.executeUpdate();
+        
+        ResultSet rs = preparedStatement.getGeneratedKeys();
+        if ( rs.next() )
+        {
+	        int newPrimaryKey = rs.getInt( 1 );
+	        verification.setVerificationCodeId( newPrimaryKey );
+        }
+        rs.close();
+        preparedStatement.close();
+	}
+	
+	
+	public static void sendCodeEmail( String emailAddress, String message )
+	{
+		System.out.println( message );
+	}
+	
+	public static String sendText( String phoneNumber, String message )
+	{
+		String response = null;
+        try 
+        {
+            // 1. Define the URL of the REST endpoint
+        	String endpointUrl = "http://localhost/securityservices/rest/security/text";
+        	System.out.println( "SecurityUtilities: Security utilities endpoint that calls third party rest service for text: " + endpointUrl );
+            @SuppressWarnings("deprecation")
+			URL url = new URL( endpointUrl );
+
+            // 2. Open a connection
+            HttpURLConnection connection = ( HttpURLConnection ) url.openConnection();
+
+            // 3. Set the request method (e.g., GET, POST, PUT, DELETE)
+            connection.setRequestMethod( "POST" );
+
+            // 4. Set request headers (optional, but often necessary for content type, authorization, etc.)
+            connection.setRequestProperty("Accept", "application/json");
+
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put( "phoneNumber", phoneNumber );
+            jsonObject.put( "textMessage", message );
+            jsonObject.put( "endpointUrl", "https://sendtext"  );
+            
+            connection.setRequestProperty( "input", jsonObject.toJSONString() );
+            
+            // 5. Get the response code
+            System.out.println( "SecurityUtilities.sendText" );
+            int responseCode = connection.getResponseCode();
+            System.out.println("Response Code: " + responseCode);
+
+            // 6. Read the response
+            if ( responseCode == HttpURLConnection.HTTP_OK ) 
+            {
+                BufferedReader in = new BufferedReader( new InputStreamReader( connection.getInputStream() ) );
+                String inputLine;
+                StringBuilder content = new StringBuilder();
+                while ( ( inputLine = in.readLine() ) != null ) 
+                {
+                    content.append( inputLine );
+                }
+                in.close();
+                response = content.toString();
+                System.out.println( "Response Body: " + content.toString() );
+            } 
+            else 
+            {
+                System.out.println( "Error in GET request: " + responseCode );
+            }
+
+            // 7. Disconnect the connection
+            connection.disconnect();
+
+        } 
+        catch (IOException e) 
+        {
+            e.printStackTrace();
+        }
+		return response;
+	}
+
+	
+	public static String sendEmail( String email, String message )
+	{
+		String response = null;
+        try 
+        {
+            // 1. Define the URL of the REST endpoint
+        	String endpointUrl = "http://localhost/securityservices/rest/security/email";
+        	System.out.println( "SecurityUtilities: Security utilities endpoint that calls third party rest service for email: " + endpointUrl );
+            @SuppressWarnings("deprecation")
+			URL url = new URL( endpointUrl );
+
+            // 2. Open a connection
+            HttpURLConnection connection = ( HttpURLConnection ) url.openConnection();
+
+            // 3. Set the request method (e.g., GET, POST, PUT, DELETE)
+            connection.setRequestMethod( "POST" );
+
+            // 4. Set request headers (optional, but often necessary for content type, authorization, etc.)
+            connection.setRequestProperty("Accept", "application/json");
+
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put( "email", email );
+            jsonObject.put( "message", message );
+            jsonObject.put( "endpointUrl", "https://sendemail"  );
+            
+            connection.setRequestProperty( "input", jsonObject.toJSONString() );
+            
+            // 5. Get the response code
+            System.out.println( "SecurityUtilities.sendEmail" );
+            int responseCode = connection.getResponseCode();
+            System.out.println("Response Code: " + responseCode);
+
+            // 6. Read the response
+            if ( responseCode == HttpURLConnection.HTTP_OK ) 
+            {
+                BufferedReader in = new BufferedReader( new InputStreamReader( connection.getInputStream() ) );
+                String inputLine;
+                StringBuilder content = new StringBuilder();
+                while ( ( inputLine = in.readLine() ) != null ) 
+                {
+                    content.append( inputLine );
+                }
+                in.close();
+                response = content.toString();
+                System.out.println( "Response Body: " + content.toString() );
+            } 
+            else 
+            {
+                System.out.println( "Error in GET request: " + responseCode );
+            }
+
+            // 7. Disconnect the connection
+            connection.disconnect();
+
+        } 
+        catch (IOException e) 
+        {
+            e.printStackTrace();
+        }
+		return response;
+	}
+
+	public static void textTheCode( String phoneNumber, String authCode )
+	{
+		System.out.println( "TEXT: authentication code is " + authCode );
+		System.out.println( "TEXT: send text to " + phoneNumber );
+		String textMessage = "Please enter this verification code when prompted to complete login: " + authCode;
+		SecurityServicesUtilities.sendText( phoneNumber, textMessage );
+	}
+
+	public static void emailTheCode( String email, String authCode )
+	{
+		System.out.println( "EMAIL: authentication code is " + authCode );
+		System.out.println( "EMAIL: send email to " + email );
+		String message = "Check your email and enter the verification code when prompted to complete login: " + authCode;
+		SecurityServicesUtilities.sendEmail( email, message );
+	}
+
+	public static void twoFactorAuthentication( AuthenticationProfileBean user, Connection connection ) throws Exception
+	{
+		// Generate a 6 digit random code.
+		String code = SecurityServicesUtilities.generateAuthenticationCode();
+		// Send authentication code to user via chosen method (email or text)
+		// add the code to the verification code table.
+		VerificationCodeBean verification = new VerificationCodeBean();
+		verification.setVerificationCode( code );
+		verification.setAuthenticationProfileId( user.getAuthenticationProfileId() );
+		SecurityServicesUtilities.addNewVerificationCode( verification, connection );
+
+		if ( "TEXT".equals( user.getVerificationCodeMethod() ) )
+			SecurityServicesUtilities.textTheCode( user.getMobilePhone(), code );
+		else
+		if ( "EMAIL".equals( user.getVerificationCodeMethod() ) )
+			SecurityServicesUtilities.emailTheCode( user.getEmail(), code );
+	}
+
+	public static String getCurrentTimestamp()
+	{
+		Instant instant = Instant.now();
+		ZoneId desiredZone = ZoneId.systemDefault();
+		ZonedDateTime zonedDateTime = instant.atZone(desiredZone);
+		
+        System.out.println("ZonedDateTime in " + desiredZone + ": " + zonedDateTime);
+
+		String convertedTimestamp = zonedDateTime.toString();
+		return convertedTimestamp;
+	}
 }
