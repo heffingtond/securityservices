@@ -306,7 +306,10 @@ public class SecurityServicesProfileCrud
 					if ( verification != null )
 					{
 						if ( verificationCode.equals( verification.getVerificationCode() ) )
+						{
 							isEnteredCodeCorrect = true;
+							SecurityServicesUtilities.deleteVerificationCode( verification.getVerificationCodeId(), connection );
+						}
 					}
 					connection.close();
 				}
