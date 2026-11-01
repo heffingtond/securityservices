@@ -78,12 +78,14 @@ public class SecurityServicesProfileCrud
 		       			userAuthenticated = SecurityServicesUtilities.authenticateUserLogin( textPassword, 
 		       																				 profile.getSalt(),
 		       																				 profile.getPassword() );
+		       			System.out.println( "SecurityServicesProfileCrud - User-selected 2FA: " + profile.getVerificationCodeMethod() );
 		       			// Check to see if 2FA needed
 		       			if ( userAuthenticated && ! SecurityServicesUtilities.isEmpty( profile.getVerificationCodeMethod() ) )
-		       			{
-		       				twoFactorAuthNeeded = true;
-		       				SecurityServicesUtilities.twoFactorAuthentication( profile, connection );
-		       			}
+		       				if ( ! profile.getVerificationCodeMethod().equalsIgnoreCase( "SELECT" ) )
+			       			{
+			       				twoFactorAuthNeeded = true;
+			       				SecurityServicesUtilities.twoFactorAuthentication( profile, connection );
+			       			}
 		       		}
 		       		connection.close();
 				}
