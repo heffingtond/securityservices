@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -26,6 +27,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.naming.Context;
 import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import org.json.simple.JSONObject;
@@ -162,7 +164,7 @@ public class SecurityServicesUtilities
 		        		saveDepartment = currentDepartment;
 		        	}
 		        }
-		        if ( rolesForDepartment.size() > 0 ) // Pick up the last record
+		        if ( rolesForDepartment != null && rolesForDepartment.size() > 0 ) // Pick up the last record
 		        {
 	        		allDepartments.put( currentDepartment, rolesForDepartment );
 		        }
@@ -227,6 +229,15 @@ public class SecurityServicesUtilities
         try 
         {
             // 1. Decode the stored salt and hash from Base64
+
+        	// Convert storedSaltBase64 to UTF_8
+        	byte[] utf8Bytes = storedSaltBase64.getBytes(StandardCharsets.UTF_8);
+            storedSaltBase64 = new String(utf8Bytes, StandardCharsets.UTF_8);
+
+            // Convert storedHashBase64 to UTF_8
+            utf8Bytes = storedHashBase64.getBytes(StandardCharsets.UTF_8);
+            storedHashBase64 = new String(utf8Bytes, StandardCharsets.UTF_8);
+        	
             byte[] salt = Base64.getDecoder().decode(storedSaltBase64);
             byte[] storedHash = Base64.getDecoder().decode(storedHashBase64);
 
@@ -354,7 +365,9 @@ public class SecurityServicesUtilities
         try 
         {
             // 1. Define the URL of the REST endpoint
-        	String endpointUrl = "http://localhost/securityservices/rest/security/text";
+       	    Context ctx = new InitialContext();
+       	    String domainName = ( String ) ctx.lookup("java:global/restServiceDomain");
+        	String endpointUrl = domainName + "/securityservices/rest/security/text";
         	System.out.println( "SecurityUtilities: Security utilities endpoint that calls third party rest service for text: " + endpointUrl );
             @SuppressWarnings("deprecation")
 			URL url = new URL( endpointUrl );
@@ -407,6 +420,10 @@ public class SecurityServicesUtilities
         {
             e.printStackTrace();
         }
+        catch (NamingException e) 
+        {
+            e.printStackTrace();
+        }
 		return response;
 	}
 
@@ -417,7 +434,9 @@ public class SecurityServicesUtilities
         try 
         {
             // 1. Define the URL of the REST endpoint
-        	String endpointUrl = "http://localhost/securityservices/rest/security/email";
+       	    Context ctx = new InitialContext();
+       	    String domainName = ( String ) ctx.lookup("java:global/restServiceDomain");
+       	    String endpointUrl = domainName + "/securityservices/rest/security/email";
         	System.out.println( "SecurityUtilities: Security utilities endpoint that calls third party rest service for email: " + endpointUrl );
             @SuppressWarnings("deprecation")
 			URL url = new URL( endpointUrl );
@@ -467,6 +486,10 @@ public class SecurityServicesUtilities
 
         } 
         catch (IOException e) 
+        {
+            e.printStackTrace();
+        }
+        catch (NamingException e) 
         {
             e.printStackTrace();
         }
