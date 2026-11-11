@@ -17,6 +17,7 @@ public class AuthenticationProfileBean
 	private String homePhone;
 	private int failedLoginAttempts;
 	private String verificationCodeMethod;
+	private String clientResult;
 
 	
 	public int getAuthenticationProfileId()
@@ -167,5 +168,15 @@ public class AuthenticationProfileBean
 	public void setVerificationCodeMethod(String verificationCodeMethod)
 	{
 		this.verificationCodeMethod = verificationCodeMethod;
+	}
+
+	public String getClientResult()
+	{
+		return clientResult;
+	}
+
+	public void setClientResult(String clientResult)
+	{
+		this.clientResult = clientResult;
 	}
 }

@@ -2,6 +2,7 @@ package rest;
 
 import java.io.StringReader;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
@@ -9,7 +10,12 @@ import java.util.TreeMap;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import beans.ApplicationBean;
+import beans.ApplicationUserDepartmentRoleBean;
 import beans.AuthenticationProfileBean;
+import beans.DepartmentBean;
+import beans.OrganizationBean;
+import beans.RoleBean;
 import beans.VerificationCodeBean;
 import core.SecurityServicesUtilities;
 import jakarta.json.Json;
@@ -48,7 +54,6 @@ public class SecurityServicesProfileCrud
     	}
     	JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
     	String userId = jsonInputObject.getString( "userId" );
-    	System.out.println( "SecurityServicesProfileCrud: Login for user ID : " + userId );
     	String textPassword = jsonInputObject.getString( "password" );
 		
         AuthenticationProfileBean profile = new AuthenticationProfileBean();
@@ -59,11 +64,8 @@ public class SecurityServicesProfileCrud
         boolean userAuthenticated = false;
         boolean twoFactorAuthNeeded = false;
         String returnPayload = "";
-		System.out.println( "SecurityProfileCrud: authentication lookup from somewhere." );
         if ( authenticate( authString ) )
         {
-			System.out.println( "SecurityProfileCrud: authentication successful." );
-			System.out.println( "SecurityProfileCrud: Just OK" );
 			Connection connection = null;
 	       	try 
 	       	{
@@ -72,13 +74,11 @@ public class SecurityServicesProfileCrud
 				{
 		       		SecurityServicesUtilities.getSecurityServicesProfile( profile, connection );
 		       		// Authenticate
-		       		System.out.println( "AuthenticationProfileId is " + profile.getAuthenticationProfileId() );
 		       		if ( profile.getAuthenticationProfileId() != 0 )
 		       		{
 		       			userAuthenticated = SecurityServicesUtilities.authenticateUserLogin( textPassword, 
 		       																				 profile.getSalt(),
 		       																				 profile.getPassword() );
-		       			System.out.println( "SecurityServicesProfileCrud - User-selected 2FA: " + profile.getVerificationCodeMethod() );
 		       			// Check to see if 2FA needed
 		       			if ( userAuthenticated && ! SecurityServicesUtilities.isEmpty( profile.getVerificationCodeMethod() ) )
 		       				if ( ! profile.getVerificationCodeMethod().equalsIgnoreCase( "SELECT" ) )
@@ -136,7 +136,6 @@ public class SecurityServicesProfileCrud
 
 		returnPayload = pload.toString();
 		
-		System.out.println( "SecurityProfileCrud - Returning JSON payload." );
     	return returnPayload;
     }
     
@@ -170,7 +169,6 @@ public class SecurityServicesProfileCrud
         String clientResult = "NEW CODE FAILED";
         if ( authenticate( authString ) )
         {
-			System.out.println( "SecurityProfileCrud: authentication successful." );
 			// insert the new code in the table.
 			Connection connection = null;
 	       	try 
@@ -225,7 +223,6 @@ public class SecurityServicesProfileCrud
     	TreeMap< String, ArrayList<String>> rolesForDepartment = null;
         if ( authenticate( authString ) )
         {
-			System.out.println( "SecurityProfileCrud: authentication successful." );
 	       	try 
 	       	{
 	       		rolesForDepartment = SecurityServicesUtilities.getUserRoles( userId, applicationCode );
@@ -269,16 +266,12 @@ public class SecurityServicesProfileCrud
   
         String returnPayload = departmentArray.toJSONString();
         
-		System.out.println( "SecurityProfileCrud - Returning JSON payload." );
-		System.out.println( returnPayload );
     	return returnPayload;
     }
 	   
 	/* GET method
-	 * All roles for requested user + application will be returned.
-	 * When using the GET method, include the input JSON in the header as indicated here:
 	 * Name = "input"
-	 * Example value = {"userId":"THEUSER","applicationCode":"SPTR"}
+	 * Example value = {"authenticationProfileId":1,"verificationCode":"012345"}
 	 */
 	@Path("validate")
     @GET
@@ -341,8 +334,77 @@ public class SecurityServicesProfileCrud
   
         String returnPayload = validationResultArray.toJSONString();
         
-		System.out.println( "SecurityProfileCrud - Returning JSON payload." );
-		System.out.println( returnPayload );
+    	return returnPayload;
+    }
+	   
+	/* GET method to look up an organization in the APPLICATION_SECURITY database by 'organizationName'
+	 * Name = "input"
+	 * Example value = {"organizationName":"Stockman Customers"}
+	 */
+	@Path("getOrganization")
+    @GET
+    @Produces("application/json; charset=UTF-8")  
+    public synchronized String getOrganization( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
+    {
+    	if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
+    	{
+    		authString = authString.substring( 6 );
+    	}
+    	JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
+    	String organizationName = jsonInputObject.getString( "organizationName" );
+		
+    	boolean isRestrictedOrganization = false;
+    	
+    	if ( "Watctower".equalsIgnoreCase( organizationName ) )
+    		isRestrictedOrganization = true;
+    	
+    	OrganizationBean organization = null;
+        if ( authenticate( authString ) && ! isRestrictedOrganization )
+        {
+        	Connection connection = null;
+	       	try 
+	       	{
+				connection = SecurityServicesUtilities.getJndiConnection( "SECURITY_MYSQL_DB" );
+				if ( connection != null )
+				{
+					organization = SecurityServicesUtilities.getOrganization( organizationName, connection );
+					connection.close();
+				}
+	       	}
+	        catch(Exception e) 
+	       	{
+	        	System.out.println( "getOrganization() exception" );
+	            e.printStackTrace();
+	        }
+        }
+        else
+        {
+        	System.out.println( "Bad authentication data or restricted organization.  Cannot process request.  Authentication failed." );
+        	throw new WebApplicationException( 401 ); // Unauthorized
+        }
+        
+        
+        String clientResult = null;
+        if ( organization == null )
+        	clientResult = "ERROR GETTING ORGANIZATION " + organizationName + "FROM DATABASE";
+        else
+        	clientResult = "SUCCESS";
+		
+		JSONArray organizationArray = new JSONArray();
+        JSONObject organizationObject = new JSONObject();
+        organizationObject.put( "organizationId", organization.getOrganizationId() );
+        organizationObject.put( "organizationName", organization.getOrganizationName() );
+        organizationObject.put( "organizationAddress", organization.getOrganizationAddress() );
+        organizationObject.put( "organizationCity", organization.getOrganizationCity() );
+        organizationObject.put( "organizationState", organization.getOrganizationState() );
+        organizationObject.put( "organizationZip", organization.getOrganizationZip() );
+        organizationObject.put( "organizationZipExt", organization.getOrganizationZipExt() );
+        organizationObject.put( "primaryUrl", organization.getPrimaryUrl() );
+        organizationObject.put( "organizationDescription", organization.getOrganizationDescription() );
+        organizationArray.add( organizationObject );
+  
+        String returnPayload = organizationArray.toJSONString();
+        
     	return returnPayload;
     }
 	   
@@ -431,7 +493,154 @@ public class SecurityServicesProfileCrud
 
 		return messageSendResultArray.toJSONString();
 	}
+	   
+	/* POST method
+	 * Add a new authentication profile for the designated application.
+	 */
+	@Path("newCustomerProfile")
+	@POST
+	@Produces("application/json; charset=UTF-8")  
+	public synchronized String newCustomerProfile( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
+	{
+		if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
+		{
+			authString = authString.substring( 6 );
+		}
+		AuthenticationProfileBean newCustomerProfile = new AuthenticationProfileBean();
+		JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
+		newCustomerProfile.setAuthenticationProfileId( jsonInputObject.getInt( "authenticationProfileId" ) );
+		newCustomerProfile.setOrganizationId( jsonInputObject.getInt( "organizationId" ) );
+		newCustomerProfile.setUserId( jsonInputObject.getString( "userId" ) );
+		newCustomerProfile.setTextPassword( jsonInputObject.getString( "textPassword" ) );
+//		newCustomerProfile.setPassword( jsonInputObject.getString( "password" ) );
+//		newCustomerProfile.setSalt( jsonInputObject.getString( "salt" ) );
+		newCustomerProfile.setFirstName( jsonInputObject.getString( "firstName" ) );
+		newCustomerProfile.setLastName( jsonInputObject.getString( "lastName" ) );
+		newCustomerProfile.setEmail( jsonInputObject.getString( "email" ) );
+		newCustomerProfile.setMobilePhone( jsonInputObject.getString( "mobilePhone" ) );
+		newCustomerProfile.setOfficePhone( jsonInputObject.getString( "officePhone" ) );
+		newCustomerProfile.setOfficePhoneExt( jsonInputObject.getString( "officePhoneExt" ) );
+		newCustomerProfile.setHomePhone( jsonInputObject.getString( "homePhone" ) );
+		newCustomerProfile.setFailedLoginAttempts( jsonInputObject.getInt( "failedLoginAttempts" ) );
+//		newCustomerProfile.setVerificationCodeMethod( jsonInputObject.getString( "verificationCodeMethod" ) );
+//		newCustomerProfile.setClientResult( jsonInputObject.getString( "clientResult" ) );
 
+	    ArrayList<String> errors = new ArrayList<String>();
+
+	    if ( authenticate( authString ) )
+	    {
+			Connection connection = null;
+	       	try 
+	       	{
+				connection = SecurityServicesUtilities.getJndiConnection( "SECURITY_MYSQL_DB" );
+				if ( connection != null )
+				{
+				    SecurityServicesUtilities.validateAuthenticationProfile( newCustomerProfile, errors, connection );
+				    if ( errors.size() == 0 )
+				    {
+						// Update the bean with secure password and salt.
+						SecurityServicesUtilities.createSecurePasswordAndSalt( newCustomerProfile );
+				    	SecurityServicesUtilities.addNewAuthenticationProfile( newCustomerProfile, connection );
+			       		newCustomerProfile.setClientResult("SUCCESS");
+				    }
+		       		connection.close();
+				}
+	       	}
+	        catch(Exception e) 
+	       	{
+	       		newCustomerProfile.setClientResult("FAILED: DATABASE ERROR");
+	        	System.out.println( "new customer profile exception" );
+	            e.printStackTrace();
+	        }
+
+	     }
+	     else
+	     {
+	     	System.out.println( "Bad authentication data.  Cannot process request.  Authentication failed." );
+	     	throw new WebApplicationException( 401 ); // Unauthorized
+	     }
+	     
+	     if ( errors.size() > 0 )
+	    	 newCustomerProfile.setClientResult("FAILED: " + errors.get( 0 ) );  
+	     
+		 JSONArray messageSendResultArray = new JSONArray();
+         JSONObject messageSendResult = new JSONObject();
+         messageSendResult.put( "result", newCustomerProfile.getClientResult() );
+         messageSendResult.put( "authenticationProfileId", newCustomerProfile.getAuthenticationProfileId() );
+         messageSendResultArray.add( messageSendResult );
+	
+	 	 return messageSendResultArray.toJSONString();
+	 }
+	   
+	   
+	/* POST method
+	 * Add a new role for the designated application.
+	 */
+	@Path("newCustomerRole")
+	@POST
+	@Produces("application/json; charset=UTF-8")  
+	public synchronized String newCustomerRole( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
+	{
+		if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
+		{
+			authString = authString.substring( 6 );
+		}
+		JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
+		int organizationId = jsonInputObject.getInt( "organizationId" );
+		int authenticationProfileId = jsonInputObject.getInt( "authenticationProfileId" );
+		String applicationCode =  jsonInputObject.getString( "applicationCode" );
+		String departmentCode =  jsonInputObject.getString( "departmentCode" );
+		String roleName =  jsonInputObject.getString( "roleName" );
+		
+		
+		ApplicationUserDepartmentRoleBean newCustomerRole = new ApplicationUserDepartmentRoleBean();
+		newCustomerRole.setClientResult( "" );
+
+	    ArrayList<String> errors = new ArrayList<String>();
+
+	    if ( authenticate( authString ) )
+	    {
+			Connection connection = null;
+	       	try 
+	       	{
+				connection = SecurityServicesUtilities.getJndiConnection( "SECURITY_MYSQL_DB" );
+				if ( connection != null )
+				{
+					newCustomerRole.setAuthenticationProfileId( authenticationProfileId );
+					ApplicationBean application = SecurityServicesUtilities.getApplication( applicationCode, connection );
+					newCustomerRole.setApplicationId( application.getApplicationId() );
+					DepartmentBean department = SecurityServicesUtilities.getDepartment( departmentCode, organizationId, connection );
+					newCustomerRole.setDepartmentId( department.getDepartmentId() );
+					RoleBean role = SecurityServicesUtilities.getRole( roleName, application.getApplicationId(), connection );
+					newCustomerRole.setRoleId( role.getRoleId() );
+			    	SecurityServicesUtilities.addNewRoleAssignment( newCustomerRole, connection );
+		       		newCustomerRole.setClientResult("SUCCESS");
+		       		connection.close();
+				}
+	       	}
+	        catch(Exception e) 
+	       	{
+	       		newCustomerRole.setClientResult("FAILED: DATABASE ERROR");
+	        	System.out.println( "new customer profile exception" );
+	            e.printStackTrace();
+	        }
+	     }
+	     else
+	     {
+	     	System.out.println( "Bad authentication data.  Cannot process request.  Authentication failed." );
+	     	throw new WebApplicationException( 401 ); // Unauthorized
+	     }
+	     
+	     if ( errors.size() > 0 )
+	    	 newCustomerRole.setClientResult("FAILED: " + errors.get( 0 ) );  
+	     
+		 JSONArray messageSendResultArray = new JSONArray();
+		 JSONObject messageSendResult = new JSONObject();
+		 messageSendResult.put( "result", newCustomerRole.getClientResult() );
+		 messageSendResultArray.add( messageSendResult );
+	
+	 	 return messageSendResultArray.toJSONString();
+	 }
 
     // This method will process the rest service authentication as desired.
     private static boolean authenticate( String authString )
