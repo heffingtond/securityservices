@@ -41,6 +41,11 @@ import beans.DepartmentBean;
 import beans.OrganizationBean;
 import beans.RoleBean;
 import beans.VerificationCodeBean;
+import jakarta.mail.Message;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 
 public class SecurityServicesUtilities
 {
@@ -947,4 +952,31 @@ public class SecurityServicesUtilities
         byte[] hash = skf.generateSecret( spec ).getEncoded();
         return Base64.getEncoder().encodeToString( hash );
     }
+	
+
+	public static void sendEmail( String sessionJndi,
+			                      String from,
+			                      String to,
+			                      String subject,
+			                      String text ) throws Exception
+	{
+//	    message.addHeader("Content-type", "text/HTML; charset=UTF-8");
+//		message.addHeader("format", "flowed");
+//		message.addHeader("Content-Transfer-Encoding", "8bit");
+    	
+        InitialContext initCtx = new InitialContext();
+        Session mailSession = ( Session ) initCtx.lookup( sessionJndi );
+        
+        Message message = new MimeMessage(mailSession);
+
+	    message.setFrom(new InternetAddress( from ));
+	    message.setRecipients(Message.RecipientType.TO, InternetAddress.parse( to ));
+	    message.setSubject( subject );
+	    message.setText( text );
+
+	    System.out.println("Sending.");
+	    Transport.send(message);
+	    System.out.println("Email sent successfully.");
+	}
+	
 }

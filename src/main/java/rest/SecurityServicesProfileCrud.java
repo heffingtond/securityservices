@@ -452,49 +452,6 @@ public class SecurityServicesProfileCrud
     }
 	   
 	/* POST method
-	 * Send an email to the provided email address.
-	 * When using the POST method, include the input JSON in the header as indicated here:
-	 * Name = "input"
-	 * Example value = {"email":"USER'S EMAIL ADDRESS","message":"THE EMAIL MESSAGE"}
-	 */
-	@Path("email")
-	@POST
-	@Produces("application/json; charset=UTF-8")  
-	public synchronized String sendEmail( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
-	{
-		if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
-		{
-			authString = authString.substring( 6 );
-		}
-		JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
-		String email = jsonInputObject.getString( "email" );
-		String message = jsonInputObject.getString( "message" );
-		String endpointUrl = jsonInputObject.getString( "endpointUrl" );
-	
-		if ( authenticate( authString ) )
-		{
-			System.out.println( "SecurityProfileCrud: authentication successful." );
-		}
-		else
-		{
-			System.out.println( "Bad authentication data.  Cannot process request.  Authentication failed." );
-			throw new WebApplicationException( 401 ); // Unauthorized
-		}
-		System.out.println( "Call the third party service to actually send the email to the customer here." );
-		System.out.println( "Endpoint URL to send text to: " + endpointUrl );
-		System.out.println( "Email address for this message: " + email );
-		System.out.println( "Message: " + message );
- 
-		String textResult = "SUCCESS";
-		JSONArray messageSendResultArray = new JSONArray();
-		JSONObject messageSendResult = new JSONObject();
-		messageSendResult.put( "emailResult", textResult );
-		messageSendResultArray.add( messageSendResult );
-
-		return messageSendResultArray.toJSONString();
-	}
-	   
-	/* POST method
 	 * Add a new authentication profile for the designated application.
 	 */
 	@Path("newCustomerProfile")
@@ -637,6 +594,51 @@ public class SecurityServicesProfileCrud
 		 JSONArray messageSendResultArray = new JSONArray();
 		 JSONObject messageSendResult = new JSONObject();
 		 messageSendResult.put( "result", newCustomerRole.getClientResult() );
+		 messageSendResultArray.add( messageSendResult );
+	
+	 	 return messageSendResultArray.toJSONString();
+	 }
+	   
+	/* POST method
+	 * Send an email.  A JNDI entry for the desired smtp host must exist.
+	 */
+	@Path("sendEmail")
+	@POST
+	@Produces("application/json; charset=UTF-8")  
+	public synchronized String sendEmail( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
+	{
+		if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
+		{
+			authString = authString.substring( 6 );
+		}
+		JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
+		String sessionJndi = jsonInputObject.getString( "sessionJndi" );
+		String from = jsonInputObject.getString( "from" );
+		String to = jsonInputObject.getString( "to" );
+		String subject = jsonInputObject.getString( "subject" );
+		String text = jsonInputObject.getString( "text" );
+
+	    ArrayList<String> errors = new ArrayList<String>();
+	    
+	    try
+	    {
+	    	SecurityServicesUtilities.sendEmail( sessionJndi, from, to, subject, text );
+	    }
+	    catch( Exception e )
+	    {
+	    	errors.add( "Failed to send email: " + to + ".  See stack trace." );
+	    	e.printStackTrace();
+	    }
+
+	     String result = null;
+	     if ( errors.size() > 0 )
+	    	 result = "FAILED: " + errors.get( 0 );
+	     else
+	    	 result = "SUCCESS";
+	     
+		 JSONArray messageSendResultArray = new JSONArray();
+		 JSONObject messageSendResult = new JSONObject();
+		 messageSendResult.put( "result", result );
 		 messageSendResultArray.add( messageSendResult );
 	
 	 	 return messageSendResultArray.toJSONString();
