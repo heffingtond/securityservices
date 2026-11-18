@@ -397,6 +397,9 @@ public class SecurityServicesUtilities
             jsonObject.put( "endpointUrl", "https://sendtext"  );
             
             connection.setRequestProperty( "input", jsonObject.toJSONString() );
+	   	    ctx = new InitialContext();
+	   	    String restKey = ( String ) ctx.lookup("java:global/restKey");
+            connection.setRequestProperty( "authorization", restKey );
             
             // 5. Get the response code
             System.out.println( "SecurityUtilities.sendText" );
@@ -464,6 +467,9 @@ public class SecurityServicesUtilities
             jsonObject.put( "endpointUrl", "https://sendemail"  );
             
             connection.setRequestProperty( "input", jsonObject.toJSONString() );
+	   	    ctx = new InitialContext();
+	   	    String restKey = ( String ) ctx.lookup("java:global/restKey");
+            connection.setRequestProperty( "authorization", restKey );
             
             // 5. Get the response code
             System.out.println( "SecurityUtilities.sendEmail" );

@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
+import javax.naming.Context;
+import javax.naming.InitialContext;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -430,7 +433,7 @@ public class SecurityServicesProfileCrud
 		
         if ( authenticate( authString ) )
         {
-			System.out.println( "SecurityProfileCrud: authentication successful." );
+			System.out.println( "SecurityProfileCrud sendText: authentication successful." );
         }
         else
         {
@@ -620,15 +623,24 @@ public class SecurityServicesProfileCrud
 
 	    ArrayList<String> errors = new ArrayList<String>();
 	    
-	    try
-	    {
-	    	SecurityServicesUtilities.sendEmail( sessionJndi, from, to, subject, text );
-	    }
-	    catch( Exception e )
-	    {
-	    	errors.add( "Failed to send email: " + to + ".  See stack trace." );
-	    	e.printStackTrace();
-	    }
+    	if ( authenticate( authString ) )
+    	{
+		    try
+		    {
+	    		SecurityServicesUtilities.sendEmail( sessionJndi, from, to, subject, text );
+		    }
+		    catch( Exception e )
+		    {
+		    	errors.add( "Failed to send email: " + to + ".  See stack trace." );
+		    	e.printStackTrace();
+		    }
+    	}
+        else
+        {
+        	System.out.println( "Bad authentication data.  Cannot process request.  Authentication failed." );
+        	throw new WebApplicationException( 401 ); // Unauthorized
+        }
+	
 
 	     String result = null;
 	     if ( errors.size() > 0 )
@@ -647,7 +659,19 @@ public class SecurityServicesProfileCrud
     // This method will process the rest service authentication as desired.
     private static boolean authenticate( String authString )
     {
-    	boolean authenticated = true;
+    	boolean authenticated = false;
+    	try
+    	{
+	   	    Context ctx = new InitialContext();
+	   	    String restKey = ( String ) ctx.lookup("java:global/restKey");
+	   	    if ( restKey.equals( authString ) )
+	   	    	authenticated = true;
+    	}
+    	catch( Exception e )
+    	{
+    		e.printStackTrace();
+    	}
+
     	return authenticated;
     }
 }
