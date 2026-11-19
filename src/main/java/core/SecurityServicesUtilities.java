@@ -623,6 +623,58 @@ public class SecurityServicesUtilities
 		return authenticationProfile;
 	}
 	
+	/**
+	 * Look up authentication profile for a given organizationId + email address.
+	 * @param organizationId
+	 * @param email
+	 * @param connection
+	 * @return
+	 */
+	public static AuthenticationProfileBean getAuthenticationProfile( int organizationId, String email, Connection connection )
+	{
+		AuthenticationProfileBean authenticationProfile = null;
+		try
+		{
+			String sql = 
+			"select * from APPLICATION_SECURITY.AUTHENTICATION_PROFILE "
+		  + "where organization_id = ? "
+		  + "and email = ? ";
+			PreparedStatement preparedStatement = null;
+	        ResultSet resultSet = null;
+	        preparedStatement = connection.prepareStatement( sql );
+	        preparedStatement.setInt( 1, organizationId );
+	        preparedStatement.setString( 2, email );
+	        resultSet = preparedStatement.executeQuery();
+	        
+	        if ( resultSet.next() )
+	        {
+	        	authenticationProfile = new AuthenticationProfileBean();
+	        	authenticationProfile.setAuthenticationProfileId( resultSet.getInt("authentication_profile_id") );
+	        	authenticationProfile.setOrganizationId( resultSet.getInt("organization_id") );
+	        	authenticationProfile.setUserId( resultSet.getString("user_id") );
+	        	authenticationProfile.setPassword( resultSet.getString("password") );
+	        	authenticationProfile.setSalt( resultSet.getString("salt") );
+	        	authenticationProfile.setFirstName( resultSet.getString("first_name") );
+	        	authenticationProfile.setLastName( resultSet.getString("last_name") );
+	        	authenticationProfile.setEmail( resultSet.getString("email") );
+	        	authenticationProfile.setMobilePhone( resultSet.getString("mobile_phone") );
+	        	authenticationProfile.setOfficePhone( resultSet.getString("office_phone") );
+	        	authenticationProfile.setOfficePhoneExt( resultSet.getString("office_phone_ext") );
+	        	authenticationProfile.setHomePhone( resultSet.getString("home_phone") );
+	        	authenticationProfile.setFailedLoginAttempts( resultSet.getInt("failed_login_attempts") );
+	        	authenticationProfile.setVerificationCodeMethod( resultSet.getString("verification_code_method") );
+	        }
+	        resultSet.close();
+	        preparedStatement.close();
+		}
+		catch( Exception e )
+		{
+			e.printStackTrace();
+		}
+		
+		return authenticationProfile;
+	}
+	
 	public static AuthenticationProfileBean getAuthenticationProfile( int authenticationProfileId, Connection connection )
 	{
 		AuthenticationProfileBean authenticationProfile = null;

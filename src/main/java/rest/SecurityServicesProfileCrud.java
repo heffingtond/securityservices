@@ -340,6 +340,84 @@ public class SecurityServicesProfileCrud
     	return returnPayload;
     }
 	   
+	/* GET method to look up a user profile for the provided organizationId + email address.
+	 * Name = "input"
+	 * Example value = {"organizationId":1,"email":"tester@test.com"}
+	 */
+	@Path("getProfileForEmail")
+	@GET
+	@Produces("application/json; charset=UTF-8")  
+	public synchronized String getProfileForEmail( @HeaderParam("input") String input, @HeaderParam("authorization") String authString )
+	{
+		if ( ! SecurityServicesUtilities.isEmpty( authString ) && authString.contains( "Basic " ) )
+	 	{
+	 		authString = authString.substring( 6 );
+	 	}
+	 	JsonObject jsonInputObject = Json.createReader(new StringReader(input)).readObject();
+	 	int organizationId = jsonInputObject.getInt( "organizationId" );
+	 	String email = jsonInputObject.getString( "email" );
+	 	
+	 	AuthenticationProfileBean profile = null;
+	 	
+	    if ( authenticate( authString ) )
+	    {
+	     	Connection connection = null;
+	       	try 
+	       	{
+				connection = SecurityServicesUtilities.getJndiConnection( "SECURITY_MYSQL_DB" );
+				if ( connection != null )
+				{
+					profile = SecurityServicesUtilities.getAuthenticationProfile( organizationId, email, connection );
+					connection.close();
+				}
+	       	}
+	        catch(Exception e) 
+	       	{
+	        	System.out.println( "getRoles() exception" );
+	            e.printStackTrace();
+	       }
+	   }
+	   else
+	   {
+		   System.out.println( "Bad authentication data.  Cannot process request.  Authentication failed." );
+		   throw new WebApplicationException( 401 ); // Unauthorized
+	   }
+	     
+	   String result = null;
+	   if ( profile != null )
+		   result = "USER PROFILE FOUND";
+	   else
+		   result = "USER PROFILE NOT FOUND";
+			
+		JSONArray profileLookupArray = new JSONArray();
+	    JSONObject profileLookup = new JSONObject();
+	    if ( "USER PROFILE FOUND".equals( result ) )
+	    {
+		    profileLookup.put( "authenticationProfileId", profile.getAuthenticationProfileId() );
+		    profileLookup.put( "organizationId", profile.getOrganizationId() );
+		    profileLookup.put( "userId", profile.getUserId() );
+		    profileLookup.put( "textPassword", profile.getTextPassword() );
+		    profileLookup.put( "password", profile.getPassword() );
+		    profileLookup.put( "salt", profile.getSalt() );
+		    profileLookup.put( "firstName", profile.getFirstName() );
+		    profileLookup.put( "lastName", profile.getLastName() );
+		    profileLookup.put( "email", profile.getEmail() );
+		    profileLookup.put( "mobilePhone", profile.getMobilePhone() );
+		    profileLookup.put( "officePhone", profile.getOfficePhone() );
+		    profileLookup.put( "officePhoneExt", profile.getOfficePhoneExt() );
+		    profileLookup.put( "homePhone", profile.getHomePhone() );
+		    profileLookup.put( "failedLoginAttempts", profile.getFailedLoginAttempts() );
+		    profileLookup.put( "verificationCodeMethod", profile.getVerificationCodeMethod() );
+		    profileLookup.put( "verificationCodeMethod", profile.getVerificationCodeMethod() );
+	    }
+	    profileLookup.put( "result", result );
+	    profileLookupArray.add( profileLookup );
+	
+	    String returnPayload = profileLookupArray.toJSONString();
+	     
+		return returnPayload;
+	}
+	   
 	/* GET method to look up an organization in the APPLICATION_SECURITY database by 'organizationName'
 	 * Name = "input"
 	 * Example value = {"organizationName":"Stockman Customers"}
